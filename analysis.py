@@ -1,6 +1,7 @@
 import pandas as pd
 from textblob import TextBlob
 import plotly.express as px
+import re
 
 
 def analyse_data(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
@@ -36,21 +37,20 @@ def analyse_data(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
     # Messages by person
     for name in df["name"].unique():
         stats[f"{name}"] = df["name"].value_counts()[name]
-
-    # Texts
-    # Join all texts into one string
-    all_texts = " ".join(df["content"].apply(str).dropna()).split(" ")
-
-    # Create a DataFrame with the word counts
-    word_counts = pd.Series(all_texts).value_counts().reset_index()
-    word_counts.columns = ["word", "count"]
-
-    # Most common words longer than 4 characters
-    most_common_words = word_counts[word_counts["word"].str.len() > 4].head(10)
     
-    # Find most used words by person longer than 4 characters
-    most_common_words_by_person = df[df["content"].str.len() > 4].groupby("name")["content"].apply(lambda x: pd.Series(" ".join(x).split()).value_counts().head(10))
-    most_common_words_by_person = most_common_words_by_person.unstack().reset_index()
+    # Most common words by person
+    split_into_words = lambda text: text.lower().split(" ")
+    exploded_df = df.assign(words=df['content'].apply(split_into_words)).explode('words')
+    
+    # Group by words and name, then count occurrences
+    most_common_words_by_person = exploded_df.groupby(['words', 'name']).size().reset_index(name='count')
+    most_common_words_by_person.columns = ['word', 'name', 'count']
+
+    # Assign a new column with total count to each word
+    most_common_words_by_person['total_count'] = most_common_words_by_person.groupby('word')['count'].transform('sum')
+
+    # Sort by total count
+    most_common_words_by_person = most_common_words_by_person[most_common_words_by_person["word"].str.len() > 4].sort_values(by='total_count', ascending=False).head(20)
 
     # Positive Sentiment DF (5 most positive messages by each person)
     pos_sent_df = df.groupby("name").apply(lambda x: x.nlargest(5, "sentiment")).reset_index(drop=True)
@@ -58,7 +58,7 @@ def analyse_data(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
     # Negative Sentiment DF (5 most negative messages by each person)
     neg_sent_df = df.groupby("name").apply(lambda x: x.nsmallest(5, "sentiment")).reset_index(drop=True)
 
-    return {"messages": messages, "stats": stats, "most_common_words": most_common_words, "most_common_words_by_person": most_common_words_by_person, "pos_sent_df": pos_sent_df, "neg_sent_df": neg_sent_df}
+    return {"messages": messages, "stats": stats, "most_common_words": most_common_words_by_person, "pos_sent_df": pos_sent_df, "neg_sent_df": neg_sent_df}
 
 
 def create_graphs(dfs: dict[str, pd.DataFrame]) -> list:
@@ -88,9 +88,12 @@ def create_graphs(dfs: dict[str, pd.DataFrame]) -> list:
     fig5 = px.histogram(dfs["messages"], x="sentiment", title="Sentiment Analysis", labels={"sentiment": "Sentiment", "count": "Number of Messages"})
 
     # Plot 6: Most common words stacked bar chart by person
-    fig6 = px.bar(dfs["most_common_words_by_person"], x="name", y="count", color="word", title="Most Commonly-Used Words by Person", labels={"word": "Person", "count": "Count", "name": "Word"})
+    fig6 = px.bar(dfs["most_common_words"], x="word", y="count", color="name", title="Most Commonly-Used Words", labels={"word": "Word", "count": "Count", "name": "Person"})
 
-    return [fig1, fig2, fig3, fig4, fig5, fig6]
+    # Plot 7: Pie chart of total messages by person
+    fig7 = px.pie(dfs["stats"].drop(["Total Messages", "Average Messages per Day", "Median difference between messages", "Median difference between replies", "Average message length", "Average sentiment"], axis=1).transpose(), names=dfs["stats"].drop(["Total Messages", "Average Messages per Day", "Median difference between messages", "Median difference between replies", "Average message length", "Average sentiment"], axis=1).columns, values=dfs["stats"].drop(["Total Messages", "Average Messages per Day", "Median difference between messages", "Median difference between replies", "Average message length", "Average sentiment"], axis=1).values[0], title="Total Messages by Person")
+
+    return [fig1, fig2, fig3, fig4, fig5, fig6, fig7]
 
 def rel_score(df: pd.DataFrame, stats: pd.DataFrame) -> float:
     """
@@ -102,6 +105,9 @@ def rel_score(df: pd.DataFrame, stats: pd.DataFrame) -> float:
 
     Returns:
     float - The relationship score, between -1 (enemies) and 1 (lovers)
+    float - The message score, between 0 and 1
+    float - The time span score, between 0 and 1
+    float - The reply score, between 0 and 1
     """
 
     clamp = lambda n : -1 if n < -1 else 1 if n > 1 else n
@@ -114,14 +120,14 @@ def rel_score(df: pd.DataFrame, stats: pd.DataFrame) -> float:
 
     message_score = clamp(df.shape[0] / (15 * time_span))
 
-    reply_score = clamp(stats["Median difference between replies"][0]/stats["Median difference between messages"][0])
+    reply_score = clamp((1/(stats["Median difference between replies"][0] / 7200))/100)
     
     if sentiment_score < 0:
         relationship_score = 0.2 * (1/message_score) + 0.1 * time_span_score + 0.2 * (1/reply_score) + 0.5 * sentiment_score
     else:
         relationship_score = 0.2 * message_score + 0.1 * time_span_score + 0.2 * reply_score + 0.5 * sentiment_score
 
-    return relationship_score
+    return round(relationship_score, 2), round(message_score, 2), round(time_span_score, 2), round(reply_score, 2), round(sentiment_score, 2)
 
 
 
