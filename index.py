@@ -7,8 +7,20 @@ import random
 def main():
     st.set_page_config(page_title="TeleMetrics", page_icon="📊", layout="wide")
     st.title("TeleMetrics")
-    st.sidebar.write("A simple yet powerful app that provides insights into your Telegram chat history.")
-    st.sidebar.write("Upload your Telegram chat history and get started!")
+    st.sidebar.write("A simple, powerful app that provides insights into your Telegram chat history.")
+    st.sidebar.write("Upload your Telegram chat history and get started!\n")
+    st.sidebar.write("""
+                     To download your chat history,
+                     1. Open Telegram Desktop and navigate to the chat you wish to analyse.
+                     2. Click on the three dots in the top right corner.
+                     3. Select 'Export Chat History'.
+                     4. Uncheck all media options (photos, videos, etcetera).
+                     5. Change the format to JSON by clicking on the format and selecting 'Machine-readable JSON' in the export format settings, and click 'save'.\n
+                     6. Click on the export button and save the file to your computer.
+                     """)
+    st.sidebar.markdown("__Made with :coffee: by [LordSaumya](https://github.com/LordSaumya)__")
+
+
 
     start_page = st.empty()
     analysis_page = st.empty()
