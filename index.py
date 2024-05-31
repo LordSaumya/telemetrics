@@ -5,7 +5,7 @@ import time
 import random
 
 def main():
-    st.set_page_config(page_title="TeleMetrics", page_icon="📊")
+    st.set_page_config(page_title="TeleMetrics", page_icon="📊", layout="wide")
     st.title("TeleMetrics")
     st.sidebar.write("A simple yet powerful app that provides insights into your Telegram chat history.")
     st.sidebar.write("Upload your Telegram chat history and get started!")
@@ -30,29 +30,50 @@ def main():
                     if st.button("Yes, continue"):
                         with st.spinner("Reading your texts..."):
                             time.sleep(random.randint(2, 4))
-                            display_analysis(analysis_page, df)
                         start_page.empty()
-
+                        display_analysis(analysis_page, df)
 
 def display_analysis(analysis_page, df):
     with analysis_page.container():
         st.balloons()
-        st.write("Here are some insights into your chat history:")
+        st.write("Here are some insights into your chat history!")
         dfs = analyse_data(df)
         stats = dfs["stats"].copy()
         for col in stats.columns[6:]:
             stats = stats.rename(columns={col: "Number of messages by " + col})
-        stats = stats.transpose().rename(columns={0: "Statistic", 1: "Value"})
+        stats = stats.rename(columns = {"Median difference between messages": "Median time between messages (sec)", "Median difference between replies": "Median time between replies (sec)", "Average message length": "Average message length (characters)", "Average sentiment": "Average sentiment (between -1 and 1)"})
+        stats = stats.transpose().rename(columns={0: "statistic", 1: "value"})
         messages = dfs["messages"].copy()
         most_common_words = dfs["most_common_words"].copy()
         most_common_words = most_common_words.rename(columns={"total_count": "frequency"})
 
-        st.write("Statistics")
-        st.dataframe(stats)
+        with st.expander("Statistics", expanded=True):
+            col1, col2 = st.columns([0.6, 0.4], gap = "medium")
+            with col1:
+                st.markdown("**General Statistics**")
+                st.dataframe(stats, use_container_width=True)
 
-        st.write("Most common words")
-        st.write(most_common_words[["word", "frequency"]].drop_duplicates().reset_index(drop=True))
+            with col2:
+                st.markdown("**Most Common Words**")
+                st.dataframe(most_common_words[["word", "frequency"]].drop_duplicates().reset_index(drop=True), use_container_width=True)
+                st.caption("Words under 5 characters are excluded.")
+        
+        fig1, fig2, fig3, fig4, fig5, fig6, fig7, fig8 = create_graphs(dfs)
+        with st.expander("Graphs", expanded=True):
+            col1, col2 = st.columns([1, 1], gap = "medium")
+            with col1:
+                st.plotly_chart(fig1)
+                st.plotly_chart(fig3)
+                st.plotly_chart(fig5)
+                st.plotly_chart(fig7)
+            with col2:
+                st.plotly_chart(fig2)
+                st.plotly_chart(fig4)
+                st.plotly_chart(fig6)
+                st.plotly_chart(fig8)
 
+        st.divider()
+        st.subheader("Relationship Score")
         relationship_score, message_score, time_span_score, reply_score, sentiment_score = rel_score(dfs["messages"], dfs["stats"])
         if messages["name"].unique().size == 2:
 
@@ -130,10 +151,6 @@ def display_analysis(analysis_page, df):
                 explanation.success("Your conversations are mostly positive. Nice work!")
             explanation.caption("The sentiment score (between -1 and 1) is calculated based on the mean sentiment of your conversations. A lower score means your conversations are more negative.")
             st.caption("The relationship score is an aggregate score based on the message score, time span score, reply score, and sentiment score. -1 means you're mortal enemies, 1 means you're lovers.")
-        st.write("Graphs")
-        graphs = create_graphs(dfs)
-        for graph in graphs:
-            st.plotly_chart(graph)
 
 if __name__ == "__main__":
     main()
