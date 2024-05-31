@@ -27,7 +27,7 @@ def load_data(file) -> pd.DataFrame:
             content = remove_json_parts(item["text"])
             extracted_data.append({"name": name, "timestamp": int(timestamp), "content": content})
         except Exception:
-            print(item)
+            pass
     df = pd.DataFrame(extracted_data)
     if df.empty:
         return None
