@@ -20,17 +20,16 @@ def main():
                      """)
     st.sidebar.markdown("__Made with :coffee: by [LordSaumya](https://github.com/LordSaumya)__")
 
-
-
     start_page = st.empty()
     analysis_page = st.empty()
 
     with start_page.container():
-        uploaded_file = st.file_uploader("Upload your Telegram chat as a JSON file", type=["json"])
+        chat_type = st.radio("Which chat do you want to analyse?", ["Telegram", "Instagram"], index=0, horizontal=True)
+        uploaded_file = st.file_uploader("Upload your chat as a JSON file", type=["json"])
         if uploaded_file is not None:
             bytes_data = uploaded_file.read()
             st.success(f"File uploaded successfully: {uploaded_file.name}")
-            df = load_data(bytes_data)
+            df = load_data(bytes_data, chat_type)
             if df is None:
                 st.error("There was an error loading the data. Please try again.")
             else:
