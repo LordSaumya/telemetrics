@@ -136,11 +136,3 @@ def rel_score(df: pd.DataFrame, stats: pd.DataFrame) -> float:
         relationship_score = 0.2 * message_score + 0.1 * time_span_score + 0.2 * reply_score + 0.5 * sentiment_score
 
     return round(relationship_score, 2), round(message_score, 2), round(time_span_score, 2), round(reply_score, 2), round(sentiment_score, 2)
-
-
-
-    
-
-    
-
-
