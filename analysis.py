@@ -71,29 +71,37 @@ def create_graphs(dfs: dict[str, pd.DataFrame]) -> list:
     Returns:
     list - A list of plotly graphs
     """
-     
-    # Plot 1: Number of messages by day of the week
-    fig1 = px.bar(dfs["messages"]["day"].value_counts().reindex(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]).reset_index(), x="day", y="count", title="Number of Messages by Day of the Week", labels={"day": "Day of the Week", "count": "Number of Messages"})
+    
+    # Plot 1: Pie chart of total messages by person
+    fig1 = px.pie(dfs["stats"].drop(["Total Messages", "Average Messages per Day", "Median difference between messages", "Median difference between replies", "Average message length", "Average sentiment"], axis=1).transpose(), names=dfs["stats"].drop(["Total Messages", "Average Messages per Day", "Median difference between messages", "Median difference between replies", "Average message length", "Average sentiment"], axis=1).columns, values=dfs["stats"].drop(["Total Messages", "Average Messages per Day", "Median difference between messages", "Median difference between replies", "Average message length", "Average sentiment"], axis=1).values[0], title="Total Messages by Person", template="plotly_dark")
 
-    # Plot 2: Number of messages by month
-    fig2 = px.bar(dfs["messages"]["month"].value_counts().sort_index().reset_index(), x="month", y="count", title="Number of Messages by Month", labels={"month": "Month", "count": "Number of Messages"})
+    # Plot 2: Number of messages by day of the week
+    fig2 = px.bar(dfs["messages"]["day"].value_counts().reindex(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]).reset_index(), x="day", y="count", title="Number of Messages by Day of the Week", labels={"day": "Day of the Week", "count": "Number of Messages"}, template="seaborn")
 
-    # Plot 3: Number of messages by hour of the day
-    fig3 = px.bar(dfs["messages"]["hour"].value_counts().sort_index().reset_index(), x="hour", y="count", title="Number of Messages by Hour of the Day", labels={"hour": "Hour of the Day", "count": "Number of Messages"})
+    # Plot 3: Number of messages by month
+    fig3 = px.bar(dfs["messages"]["month"].value_counts().sort_index().reset_index(), x="month", y="count", title="Number of Messages by Month", labels={"month": "Month", "count": "Number of Messages"}, template="seaborn")
 
-    # Plot 4: Time between messages
-    fig4 = px.histogram(dfs["messages"], x="difference", title="Time between Messages", labels={"difference": "Time between Messages (s)", "count": "Number of Messages"})
+    # Plot 4: Number of messages by hour of the day
+    fig4 = px.bar(dfs["messages"]["hour"].value_counts().sort_index().reset_index(), x="hour", y="count", title="Number of Messages by Hour of the Day", labels={"hour": "Hour of the Day", "count": "Number of Messages"}, template="plotly_dark")
 
-    # Plot 5: Sentiment Analysis
-    fig5 = px.histogram(dfs["messages"], x="sentiment", title="Sentiment Analysis", labels={"sentiment": "Sentiment", "count": "Number of Messages"})
+    # Plot 5: Time between messages
+    fig5 = px.histogram(dfs["messages"], x="difference", title="Time between Messages", labels={"difference": "Time between Messages (sec)", "count": "Number of Messages"}, template="plotly_dark")
 
-    # Plot 6: Most common words stacked bar chart by person
-    fig6 = px.bar(dfs["most_common_words"], x="word", y="count", color="name", title="Most Commonly-Used Words", labels={"word": "Word", "count": "Count", "name": "Person"})
+    # Plot 6: Sentiment Analysis
+    fig6 = px.histogram(dfs["messages"], x="sentiment", title="Sentiment Analysis", labels={"sentiment": "Sentiment", "count": "Number of Messages"}, template="seaborn")
 
-    # Plot 7: Pie chart of total messages by person
-    fig7 = px.pie(dfs["stats"].drop(["Total Messages", "Average Messages per Day", "Median difference between messages", "Median difference between replies", "Average message length", "Average sentiment"], axis=1).transpose(), names=dfs["stats"].drop(["Total Messages", "Average Messages per Day", "Median difference between messages", "Median difference between replies", "Average message length", "Average sentiment"], axis=1).columns, values=dfs["stats"].drop(["Total Messages", "Average Messages per Day", "Median difference between messages", "Median difference between replies", "Average message length", "Average sentiment"], axis=1).values[0], title="Total Messages by Person")
+    # Plot 7: Most common words stacked bar chart by person
+    fig7 = px.bar(dfs["most_common_words"], x="word", y="count", color="name", title="Most Commonly-Used Words", labels={"word": "Word", "count": "Count", "name": "Person"}, template = "seaborn")
 
-    return [fig1, fig2, fig3, fig4, fig5, fig6, fig7]
+    # Plot 8: Heatmap of messages by day and hour
+    df_heatmap = dfs["messages"].groupby(["day", "hour"]).size().reset_index(name='count')
+    fig8 = px.density_heatmap(df_heatmap, x="hour", y="day", z="count", title="Heatmap of Messages by Hour and Day", 
+                          labels={"hour": "Hour of the Day", "day": "Day of the Week", "count": "Messages"}, 
+                          category_orders={"day": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]}, nbinsx=12, nbinsy=7,
+                          template="plotly_dark")
+    fig8.update_layout(xaxis = dict(dtick=2))
+
+    return [fig1, fig2, fig3, fig4, fig5, fig6, fig7, fig8]
 
 def rel_score(df: pd.DataFrame, stats: pd.DataFrame) -> float:
     """
