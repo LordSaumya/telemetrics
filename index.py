@@ -68,8 +68,8 @@ def display_analysis(analysis_page, df):
                 st.markdown("**Most Common Words**")
                 st.dataframe(most_common_words[["word", "frequency"]].drop_duplicates().reset_index(drop=True), use_container_width=True)
                 st.caption("Words under 5 characters are excluded.")
-        
-        fig1, fig2, fig3, fig4, fig5, fig6, fig7, fig8 = create_graphs(dfs)
+        with st.spinner("Generating graphs..."):
+            fig1, fig2, fig3, fig4, fig5, fig6, fig7, fig8, fig9, fig10 = create_graphs(dfs)
         with st.expander("Graphs", expanded=True):
             col1, col2 = st.columns([1, 1], gap = "medium")
             with col1:
@@ -77,17 +77,18 @@ def display_analysis(analysis_page, df):
                 st.plotly_chart(fig3)
                 st.plotly_chart(fig5)
                 st.plotly_chart(fig7)
+                st.plotly_chart(fig9)
             with col2:
                 st.plotly_chart(fig2)
                 st.plotly_chart(fig4)
                 st.plotly_chart(fig6)
                 st.plotly_chart(fig8)
+                st.plotly_chart(fig10)
 
-        st.divider()
-        st.subheader("Relationship Score")
-        relationship_score, message_score, time_span_score, reply_score, sentiment_score = rel_score(dfs["messages"], dfs["stats"])
         if messages["name"].unique().size == 2:
-
+            st.divider()
+            st.subheader("Relationship Score")
+            relationship_score, message_score, time_span_score, reply_score, sentiment_score = rel_score(dfs["messages"], dfs["stats"])
             # Relationship score explanation
             if relationship_score < -0.9:
                 status = "Mortal enemies"
@@ -162,6 +163,5 @@ def display_analysis(analysis_page, df):
                 explanation.success("Your conversations are mostly positive. Nice work!")
             explanation.caption("The sentiment score (between -1 and 1) is calculated based on the mean sentiment of your conversations. A lower score means your conversations are more negative.")
             st.caption("The relationship score is an aggregate score based on the message score, time span score, reply score, and sentiment score. -1 means you're mortal enemies, 1 means you're lovers.")
-
 if __name__ == "__main__":
     main()

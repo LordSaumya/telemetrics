@@ -2,7 +2,14 @@ import pandas as pd
 from textblob import TextBlob
 import plotly.express as px
 import re
-
+import nltk
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+import re
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.decomposition import LatentDirichletAllocation
+from sklearn.metrics import silhouette_score
+import random
 
 def analyse_data(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
     """
@@ -101,7 +108,28 @@ def create_graphs(dfs: dict[str, pd.DataFrame]) -> list:
                           template="plotly_dark")
     fig8.update_layout(xaxis = dict(dtick=2))
 
-    return [fig1, fig2, fig3, fig4, fig5, fig6, fig7, fig8]
+    # Plot 9: Bubble plot of clusters (x and y positions are random, size is the count of messages in the cluster)
+    # Remove x and y axes and gridlines, plot labels on top of bubbles
+    # Increased scale of bubbles for better visibility
+    top_words = clusters(dfs["messages"])
+    if top_words.shape[0] == 4:
+        x_pos = [0, 100, 0, 100]
+        y_pos = [0, 0, 100, 100]
+    else:
+        x_pos = [0, 100, 0, 100, 0]
+        y_pos = [0, 0, 100, 100, 100]
+    x_pos = [x + random.uniform(-25, 25) for x in x_pos]
+    y_pos = [y + random.uniform(-25, 25) for y in y_pos]
+    fig9 = px.scatter(top_words, x=x_pos, y=y_pos, size="count", hover_name="top_words", title="Word Clusters", template="plotly_dark", size_max=90, text = "top_words", color = [x_pos[i] + y_pos[i] for i in range(len(x_pos))])
+    fig9.update_traces(marker=dict(line=dict(width=2, color='DarkSlateGrey')), selector=dict(mode='markers'))
+    fig9.update_xaxes(showgrid=False, showticklabels=False, zeroline=False, visible = False)
+    fig9.update_yaxes(showgrid=False, showticklabels=False, zeroline=False, visible = False)
+    fig9.update_layout(showlegend=False, coloraxis_showscale=False)
+
+    # Plot 10: Bar chart of message length by person
+    fig10 = px.bar(dfs["messages"].groupby("name")["content"].apply(lambda x: x.str.len().mean()).reset_index(name="average_length"), x="name", y="average_length", title="Average Message Length by Person", labels={"name": "Person", "average_length": "Average Message Length (characters)"}, template="seaborn")
+
+    return [fig1, fig2, fig3, fig4, fig5, fig6, fig7, fig8, fig9, fig10]
 
 def rel_score(df: pd.DataFrame, stats: pd.DataFrame) -> float:
     """
@@ -136,3 +164,63 @@ def rel_score(df: pd.DataFrame, stats: pd.DataFrame) -> float:
         relationship_score = 0.2 * message_score + 0.1 * time_span_score + 0.2 * reply_score + 0.5 * sentiment_score
 
     return round(relationship_score, 2), round(message_score, 2), round(time_span_score, 2), round(reply_score, 2), round(sentiment_score, 2)
+
+def clusters(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Perform clustering on the messages data and return a DataFrame with the clusters
+
+    Parameters:
+    df: pd.DataFrame - The data to cluster
+
+    Returns:
+    pd.DataFrame - counts and top words for each cluster
+    """
+    df = df.copy()
+    nltk.download('stopwords')
+    nltk.download('wordnet')
+    lemmatiser = WordNetLemmatizer()
+    stop_words = set(stopwords.words('english'))
+
+    # Preprocess data
+    def preprocess_msg(msg):
+        msg = re.sub(r'[^a-zA-Z\s]', '', msg).lower()
+        tokens = msg.split()
+        words_to_filter = ['think', 'kinda', 'thanks', 'thing', 'wanna', 'thats', 'probably', 'coming', 'today', 'didnt', 'maybe', 'later', 'gonna', 'really', 'hahaha', 'about', 'aight', 'sorry', 'going', 'hahahaha', 'right', 'actually', 'whats', 'havent', 'youre', 'gotta']
+        tokens = filter(lambda x: len(x) > 4 and x not in words_to_filter, [lemmatiser.lemmatize(word) for word in tokens if word not in stop_words])
+        return ' '.join(tokens)
+    df['content'] = df['content'].apply(preprocess_msg)
+    df = df[df['content'].str.len() > 4]
+
+    # Vectorise data
+    vectoriser = CountVectorizer(max_features=1000, stop_words='english')
+    X = vectoriser.fit_transform(df['content'])
+
+    # Compute optimal number of clusters using silhouette score
+    scores = []
+    for i in range(4, 6):
+        lda = LatentDirichletAllocation(n_components=i, random_state=0)
+        lda.fit(X)
+        score = silhouette_score(X, lda.transform(X).argmax(axis=1))
+        scores.append(score)
+    n_clusters = scores.index(max(scores)) + 4
+
+    # Perform clustering
+    lda = LatentDirichletAllocation(n_components=n_clusters)
+    lda.fit(X)
+    df['cluster'] = lda.transform(X).argmax(axis=1)
+
+    def get_top_words(model, feature_names, n_top_words):
+        top_words = {}
+        for topic_idx, topic in enumerate(model.components_):
+            top_words[topic_idx] = [feature_names[i] for i in topic.argsort()[:-n_top_words - 1:-1]]
+        return top_words
+
+    # Get feature names
+    feature_names = vectoriser.get_feature_names_out()
+    top_words = get_top_words(lda, feature_names, 5)  # Adjust the number of top words
+
+    counts = df['cluster'].value_counts().reset_index()
+    counts.columns = ['cluster', 'count']
+    counts['top_words'] = counts['cluster'].map(top_words)
+
+    return counts[['top_words', 'count']].sort_values(by='count', ascending=False)
